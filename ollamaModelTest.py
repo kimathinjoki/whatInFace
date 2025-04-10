@@ -1,3 +1,4 @@
+
 import pandas as pd
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ MODELS = [
     "llama3:8b",
     "codellama:7b",
     "gemma3:1b",
+    "gemma3:4b",
     "phi3:mini"
 ]
 
@@ -142,12 +144,22 @@ def benchmark_models(file_path, models, sample_size=20):
     
     # Dictionary to store all results
     benchmark_results = {}
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Test each model
     for model_name in models:
         print(f"\nBenchmarking model: {model_name}")
         model_results = []
         
+        # Create a file to save results incrementally for this model
+        model_file = os.path.join(results_dir, f"{model_name.replace(':', '_')}_{timestamp}.csv")
+        
+        # Create in-progress indicator file
+        progress_file = os.path.join(results_dir, f"{model_name.replace(':', '_')}_{timestamp}_in_progress.txt")
+        with open(progress_file, 'w') as f:
+            f.write(f"Benchmark in progress for model: {model_name}\nStarted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        sample_count = 0
         for index, row in tqdm(sample_df.iterrows(), total=len(sample_df)):
             try:
                 # Create prompt for this loan application
@@ -173,13 +185,29 @@ def benchmark_models(file_path, models, sample_size=20):
                         decision = 0
                 
                 # Store result
-                model_results.append({
+                result_data = {
                     "index": index,
                     "decision": decision,
                     "processing_time": result["processing_time"],
                     "tokens_per_second": result["tokens_per_second"],
                     "reasoning": response_text
-                })
+                }
+                model_results.append(result_data)
+                
+                # Save results incrementally
+                sample_count += 1
+                if sample_count % 5 == 0 or sample_count == len(sample_df):
+                    # Create DataFrame from current results
+                    current_df = pd.DataFrame(model_results)
+                    current_df.to_csv(model_file, index=False)
+                    
+                    # Update progress file
+                    with open(progress_file, 'w') as f:
+                        f.write(f"Benchmark in progress for model: {model_name}\n")
+                        f.write(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                        f.write(f"Progress: {sample_count}/{len(sample_df)} samples processed\n")
+                        f.write(f"Current avg processing time: {sum(r['processing_time'] for r in model_results) / len(model_results):.2f} seconds\n")
+                        f.write(f"Current avg tokens per second: {sum(r['tokens_per_second'] for r in model_results) / len(model_results):.2f}")
                 
                 # Small pause between requests
                 time.sleep(0.5)
@@ -201,9 +229,12 @@ def benchmark_models(file_path, models, sample_size=20):
             print(f"Model: {model_name}")
             print(f"Average processing time: {avg_processing_time:.2f} seconds")
             print(f"Average tokens per second: {avg_tokens_per_second:.2f}")
+        
+        # Remove the in-progress file
+        if os.path.exists(progress_file):
+            os.remove(progress_file)
     
     # Save overall results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     results_file = os.path.join(results_dir, f"benchmark_summary_{timestamp}.json")
     
     with open(results_file, 'w') as f:
@@ -219,20 +250,6 @@ def benchmark_models(file_path, models, sample_size=20):
         
     print(f"\nBenchmark summary saved to {results_file}")
     
-    # Save detailed results for each model
-    for model_name, data in benchmark_results.items():
-        model_file = os.path.join(results_dir, f"{model_name.replace(':', '_')}_{timestamp}.csv")
-        model_df = pd.DataFrame([{
-            "index": r["index"],
-            "decision": r["decision"],
-            "processing_time": r["processing_time"],
-            "tokens_per_second": r["tokens_per_second"],
-            "reasoning": r["reasoning"]
-        } for r in data["results"]])
-        
-        model_df.to_csv(model_file, index=False)
-        print(f"Detailed results for {model_name} saved to {model_file}")
-        
     return benchmark_results
 
 def run_full_test(file_path, model_name, num_samples=100):
