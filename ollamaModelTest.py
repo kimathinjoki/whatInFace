@@ -18,7 +18,6 @@ MODELS = [
     "gemma3:4b",
     "phi3:mini",
     "mistral:7b",      
-    "deepseek-coder:6.7b", 
     "qwen:1.5-7b",     
     "qwen:2-7b",        
     "deepseek-r1:7b",  
