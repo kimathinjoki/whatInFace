@@ -72,6 +72,9 @@ ollama pull codellama:7b
 ollama pull gemma3:1b
 ollama pull gemma3:4b
 ollama pull phi3:mini
+ollama pull mistral:7b
+ollama pull qwen:2-7b
+ollama pull deepseek-r1:7b
 ```
 
 ## Using the Benchmark Tool
